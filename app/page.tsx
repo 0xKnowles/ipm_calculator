@@ -199,7 +199,7 @@ export default function IPMCalculator() {
     <div className="container mx-auto p-4 bg-gradient-to-b from-slate-50 to-white min-h-screen">
       <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-center text-slate-800">Biological Pest Calculator</h1>
       <div className="flex justify-center mb-6">
-        <Image src="/logo.PNG" alt="IPM Calculator Logo" width={200} height={100} />
+        <Image src="/logo.PNG" alt="IPM Calculator Logo" width={75} height={75} />
       </div>
       <Card className="mb-8 shadow-lg border-slate-200">
         <CardHeader className="bg-slate-100">
