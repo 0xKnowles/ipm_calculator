@@ -11,7 +11,7 @@ The IPM (Integrated Pest Management) Calculator is a web-based tool designed to 
 - 📊 Real-time calculations of pest quantities and costs
 - 📱 Responsive design for desktop and mobile
 
-![IPM Calculator Screenshot](Public/example.PNG)
+![IPM Calculator Screenshot](public/example.PNG)
 
 ## Quick Start
 
