@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import jsPDF from "jspdf"
 import "jspdf-autotable"
+import { SettingsMenu } from "@/components/SettingsMenu"
 
 interface PestControlAgent {
   brandedName: string
@@ -21,7 +22,7 @@ interface PestControlAgent {
   method: string
 }
 
-const pestControlAgents: PestControlAgent[] = [
+const initialPestControlAgents: PestControlAgent[] = [
   {
     brandedName: "Aphipar",
     scientificName: "Aphidius Colemani",
@@ -124,6 +125,8 @@ export default function IPMCalculator() {
   const [hasExtraBays, setHasExtraBays] = useState(false)
   const [bayWidth, setBayWidth] = useState(8)
   const [bayLength, setBayLength] = useState(50)
+  const [logoLoaded, setLogoLoaded] = useState(false)
+  const [pestControlAgents, setPestControlAgents] = useState<PestControlAgent[]>(initialPestControlAgents)
 
   const baySize = bayWidth * bayLength
   const treatedSquareMeters = Math.max(1, treatedBays) * baySize
@@ -195,12 +198,38 @@ export default function IPMCalculator() {
     doc.save("ipm_calculations.pdf")
   }
 
+  const updateAgentPrice = (brandedName: string, newPrice: number) => {
+    setPestControlAgents((prevAgents) =>
+      prevAgents.map((agent) => (agent.brandedName === brandedName ? { ...agent, pricePerBottle: newPrice } : agent)),
+    )
+  }
+
+  useEffect(() => {
+    console.log("Component mounted, attempting to load logo")
+  }, [])
+
   return (
-    <div className="container mx-auto p-4 bg-gradient-to-b from-slate-50 to-white min-h-screen">
+    <div className="container mx-auto p-4 bg-gradient-to-b from-slate-50 to-white min-h-screen relative">
+      <SettingsMenu pestControlAgents={pestControlAgents} updateAgentPrice={updateAgentPrice} />
       <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-center text-slate-800">Biological Pest Calculator</h1>
       <div className="flex justify-center mb-6">
-        <Image src="/logo.PNG" alt="IPM Calculator Logo" width={75} height={65} />
+        <Image
+          src="/logo.PNG"
+          alt="IPM Calculator Logo"
+          width={75}
+          height={50}
+          priority
+          onLoad={() => {
+            console.log("Logo loaded successfully")
+            setLogoLoaded(true)
+          }}
+          onError={(e) => {
+            console.error("Error loading image:", e)
+            e.currentTarget.src = "/placeholder.svg?height=100&width=200"
+          }}
+        />
       </div>
+
       <Card className="mb-8 shadow-lg border-slate-200">
         <CardHeader className="bg-slate-100">
           <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
@@ -405,4 +434,3 @@ export default function IPMCalculator() {
     </div>
   )
 }
-
