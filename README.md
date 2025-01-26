@@ -16,7 +16,7 @@ The IPM (Integrated Pest Management) Calculator is a web-based tool designed to 
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/ipm-calculator.git
+git clone https://github.com/0xKnowles/ipm-calculator.git
 cd ipm-calculator
 npm install
 npm run dev
