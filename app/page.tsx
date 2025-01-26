@@ -4,10 +4,14 @@ import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Leaf, Bug, DollarSign, ChevronDown, ChevronUp } from "lucide-react"
+import { Leaf, Bug, DollarSign, ChevronDown, ChevronUp, FileDown } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { Badge } from "@/components/ui/badge"
+import Image from "next/image"
+import jsPDF from "jspdf"
+import "jspdf-autotable"
 
 interface PestControlAgent {
   brandedName: string
@@ -118,8 +122,10 @@ export default function IPMCalculator() {
   const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>([])
   const [openAgents, setOpenAgents] = useState<string[]>([])
   const [hasExtraBays, setHasExtraBays] = useState(false)
-  const baySize = 400 // 8x50m = 400 square meters
+  const [bayWidth, setBayWidth] = useState(8)
+  const [bayLength, setBayLength] = useState(50)
 
+  const baySize = bayWidth * bayLength
   const treatedSquareMeters = Math.max(1, treatedBays) * baySize
 
   const toggleAgent = (brandedName: string) => {
@@ -158,20 +164,83 @@ export default function IPMCalculator() {
     )
   }
 
-  return (
-    <div className="container mx-auto p-4 bg-gradient-to-b from-green-50 to-white min-h-screen">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center text-green-800">Biological Pest Calculator</h1>
+  const exportToPDF = () => {
+    const doc = new jsPDF()
+    doc.setFontSize(18)
+    doc.text("IPM Calculator Report", 14, 22)
+    doc.setFontSize(12)
+    doc.text(`Total treated area: ${treatedSquareMeters.toLocaleString()} m²`, 14, 32)
 
-      <Card className="mb-8 shadow-lg border-green-200">
-        <CardHeader className="bg-green-100">
-          <CardTitle className="text-xl sm:text-2xl text-green-800 flex items-center">
-            <Leaf className="mr-2" /> Bay Configuration
+    const tableData = selectedAgents.map((agent) => {
+      const calculation = calculateBottlesAndCost(agent)
+      if (!calculation) return []
+      return [
+        agent.brandedName,
+        agent.desiredPestPerMeter,
+        calculation.totalPestsNeeded.toLocaleString(),
+        calculation.bottlesNeeded.toLocaleString(),
+        `$${calculation.totalCost.toFixed(2)}`,
+      ]
+    })
+
+    doc.autoTable({
+      head: [["Agent", "Desired Pest/m²", "Total Pests", "Bottles", "Cost"]],
+      body: tableData,
+      startY: 40,
+    })
+
+    doc.setFontSize(14)
+    doc.text(`Total Cost: $${totalCost.toFixed(2)}`, 14, doc.lastAutoTable.finalY + 10)
+
+    doc.save("ipm_calculations.pdf")
+  }
+
+  return (
+    <div className="container mx-auto p-4 bg-gradient-to-b from-slate-50 to-white min-h-screen">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-center text-slate-800">Biological Pest Calculator</h1>
+      <div className="flex justify-center mb-6">
+        <Image src="/public/logo.PNG" alt="IPM Calculator Logo" width={200} height={100} />
+      </div>
+
+      <Card className="mb-8 shadow-lg border-slate-200">
+        <CardHeader className="bg-slate-100">
+          <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
+            <Leaf className="mr-2 text-teal-600" /> Bay Configuration
           </CardTitle>
-          <CardDescription>Each bay is 8x50m (400 square meters)</CardDescription>
+          <CardDescription>Adjust bay size and number of bays to treat</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="flex flex-col items-center justify-center gap-4">
-            <Label htmlFor="treated-bays" className="text-lg">
+            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+              <div>
+                <Label htmlFor="bay-width" className="text-sm text-slate-700">
+                  Bay Width (m)
+                </Label>
+                <Input
+                  id="bay-width"
+                  type="number"
+                  min={1}
+                  value={bayWidth}
+                  onChange={(e) => setBayWidth(Number(e.target.value))}
+                  className="border-slate-300 focus:border-teal-500 focus:ring-teal-500"
+                />
+              </div>
+              <div>
+                <Label htmlFor="bay-length" className="text-sm text-slate-700">
+                  Bay Length (m)
+                </Label>
+                <Input
+                  id="bay-length"
+                  type="number"
+                  min={1}
+                  value={bayLength}
+                  onChange={(e) => setBayLength(Number(e.target.value))}
+                  className="border-slate-300 focus:border-teal-500 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+            <div className="text-sm text-slate-600">Bay Size: {baySize} m²</div>
+            <Label htmlFor="treated-bays" className="text-lg text-slate-700">
               Number of Bays to Treat: {treatedBays}
             </Label>
             <Slider
@@ -189,20 +258,24 @@ export default function IPMCalculator() {
                 id="extra-bays"
                 checked={hasExtraBays}
                 onChange={(e) => setHasExtraBays(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
+                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
               />
-              <Label htmlFor="extra-bays">Add extra bays</Label>
+              <Label htmlFor="extra-bays" className="text-slate-700">
+                Add extra bays
+              </Label>
             </div>
             {hasExtraBays && (
               <div className="flex items-center gap-2 mt-2">
-                <Label htmlFor="extra-bays-input">Extra bays:</Label>
+                <Label htmlFor="extra-bays-input" className="text-slate-700">
+                  Extra bays:
+                </Label>
                 <Input
                   id="extra-bays-input"
                   type="number"
                   min={1}
                   value={treatedBays > 15 ? treatedBays - 15 : 0}
                   onChange={(e) => setTreatedBays(15 + Number(e.target.value))}
-                  className="w-20"
+                  className="w-20 border-slate-300 focus:border-teal-500 focus:ring-teal-500"
                 />
               </div>
             )}
@@ -210,17 +283,17 @@ export default function IPMCalculator() {
         </CardContent>
       </Card>
 
-      <Card className="mb-8 shadow-lg border-green-200">
-        <CardHeader className="bg-green-100">
-          <CardTitle className="text-xl sm:text-2xl text-green-800 flex items-center">
-            <Bug className="mr-2" /> Select Biological Control Agents
+      <Card className="mb-8 shadow-lg border-slate-200">
+        <CardHeader className="bg-slate-100">
+          <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
+            <Bug className="mr-2 text-teal-600" /> Select Biological Control Agents
           </CardTitle>
           <CardDescription>Choose agents and set desired pest density per m²</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {pestControlAgents.map((agent) => (
-              <div key={agent.brandedName} className="border rounded-lg bg-white overflow-hidden">
+              <div key={agent.brandedName} className="border rounded-lg bg-white overflow-hidden border-slate-200">
                 <div className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -228,11 +301,16 @@ export default function IPMCalculator() {
                         type="checkbox"
                         checked={selectedAgents.some((a) => a.brandedName === agent.brandedName)}
                         onChange={() => toggleAgent(agent.brandedName)}
-                        className="h-4 w-4 rounded border-gray-300"
+                        className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                       />
-                      <span className="font-medium">{agent.brandedName}</span>
+                      <span className="font-medium text-slate-700">{agent.brandedName}</span>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => toggleAgentCollapsible(agent.brandedName)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleAgentCollapsible(agent.brandedName)}
+                      className="text-slate-600 hover:text-slate-800"
+                    >
                       {openAgents.includes(agent.brandedName) ? (
                         <ChevronUp className="h-4 w-4" />
                       ) : (
@@ -242,13 +320,21 @@ export default function IPMCalculator() {
                   </div>
                 </div>
                 {openAgents.includes(agent.brandedName) && (
-                  <div className="p-4 bg-gray-50">
+                  <div className="p-4 bg-slate-50">
                     <Separator className="my-2" />
-                    <div className="text-sm text-gray-600 mb-2">{agent.scientificName}</div>
-                    <div className="text-sm text-gray-600 mb-2">Method: {agent.method}</div>
+                    <div className="text-sm text-slate-600 mb-2">{agent.scientificName}</div>
+                    <div className="text-sm text-slate-600 mb-2">
+                      Method:{" "}
+                      <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800">
+                        {agent.method}
+                      </Badge>
+                    </div>
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                       <div className="flex items-center gap-2">
-                        <Label htmlFor={`pest-density-${agent.brandedName}`} className="text-sm whitespace-nowrap">
+                        <Label
+                          htmlFor={`pest-density-${agent.brandedName}`}
+                          className="text-sm whitespace-nowrap text-slate-700"
+                        >
                           Desired Pest/m²:
                         </Label>
                         <Input
@@ -259,11 +345,15 @@ export default function IPMCalculator() {
                           }
                           onChange={(e) => updateDesiredPestPerMeter(agent.brandedName, Number(e.target.value))}
                           disabled={!selectedAgents.some((a) => a.brandedName === agent.brandedName)}
-                          className="w-20"
+                          className="w-20 border-slate-300 focus:border-teal-500 focus:ring-teal-500"
                         />
                       </div>
-                      <div className="text-sm">Population/Bottle: {agent.populationPerBottle.toLocaleString()}</div>
-                      <div className="text-sm font-semibold">${agent.pricePerBottle.toFixed(2)}/bottle</div>
+                      <div className="text-sm text-slate-600">
+                        Population/Bottle: {agent.populationPerBottle.toLocaleString()}
+                      </div>
+                      <div className="text-sm font-semibold text-slate-700">
+                        ${agent.pricePerBottle.toFixed(2)}/bottle
+                      </div>
                     </div>
                   </div>
                 )}
@@ -273,10 +363,10 @@ export default function IPMCalculator() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-lg border-green-200">
-        <CardHeader className="bg-green-100">
-          <CardTitle className="text-xl sm:text-2xl text-green-800 flex items-center">
-            <DollarSign className="mr-2" /> Order Calculations
+      <Card className="shadow-lg border-slate-200">
+        <CardHeader className="bg-slate-100">
+          <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
+            <DollarSign className="mr-2 text-teal-600" /> Order Calculations
           </CardTitle>
           <CardDescription>Total treated area: {treatedSquareMeters.toLocaleString()} m²</CardDescription>
         </CardHeader>
@@ -287,27 +377,30 @@ export default function IPMCalculator() {
               if (!calculation) return null
 
               return (
-                <div key={selectedAgent.brandedName} className="p-4 border rounded-lg bg-white">
-                  <div className="font-medium mb-2">{selectedAgent.brandedName}</div>
+                <div key={selectedAgent.brandedName} className="p-4 border rounded-lg bg-white border-slate-200">
+                  <div className="font-medium mb-2 text-slate-700">{selectedAgent.brandedName}</div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                    <div>Total Pests: {calculation.totalPestsNeeded.toLocaleString()}</div>
-                    <div>Bottles: {calculation.bottlesNeeded.toLocaleString()}</div>
-                    <div className="font-semibold">Cost: ${calculation.totalCost.toFixed(2)}</div>
+                    <div className="text-slate-600">Total Pests: {calculation.totalPestsNeeded.toLocaleString()}</div>
+                    <div className="text-slate-600">Bottles: {calculation.bottlesNeeded.toLocaleString()}</div>
+                    <div className="font-semibold text-slate-700">Cost: ${calculation.totalCost.toFixed(2)}</div>
                   </div>
                 </div>
               )
             })}
-            <div className="flex justify-between items-center font-bold text-lg p-4 bg-green-50 rounded-lg">
-              <span>Total Cost:</span>
-              <span>${totalCost.toFixed(2)}</span>
+            <div className="flex justify-between items-center font-bold text-lg p-4 bg-slate-50 rounded-lg">
+              <span className="text-slate-700">Total Cost:</span>
+              <span className="text-teal-600">${totalCost.toFixed(2)}</span>
             </div>
           </div>
         </CardContent>
-        <CardFooter className="bg-green-50 text-sm text-gray-600">
+        <CardFooter className="bg-slate-50 text-sm text-slate-600 flex justify-between items-center">
           <p>
             Calculations are based on desired pest density per square meter. Adjust as needed based on pest pressure and
             environmental conditions.
           </p>
+          <Button onClick={exportToPDF} className="ml-4 bg-teal-600 hover:bg-teal-700 text-white">
+            <FileDown className="mr-2 h-4 w-4" /> Export PDF
+          </Button>
         </CardFooter>
       </Card>
     </div>
