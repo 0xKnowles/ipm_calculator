@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Bio Calculator',
-  description: 'IPM Calculation tool',
+  description: 'Bio Calculator made by 0xKnowles',
 }
 
 export default function RootLayout({
