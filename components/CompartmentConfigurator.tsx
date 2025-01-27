@@ -1,0 +1,102 @@
+import React from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Plus, Trash2 } from "lucide-react"
+
+export interface CompartmentConfig {
+  id: string
+  width: number
+  length: number
+  count: number
+}
+
+interface CompartmentConfiguratorProps {
+  compartments: CompartmentConfig[]
+  onChange: (compartments: CompartmentConfig[]) => void
+}
+
+export function CompartmentConfigurator({ compartments, onChange }: CompartmentConfiguratorProps) {
+  const addCompartment = () => {
+    const newCompartment: CompartmentConfig = {
+      id: Date.now().toString(),
+      width: 8,
+      length: 50,
+      count: 1,
+    }
+    onChange([...compartments, newCompartment])
+  }
+
+  const updateCompartment = (id: string, field: keyof CompartmentConfig, value: number) => {
+    onChange(
+      compartments.map((compartment) => (compartment.id === id ? { ...compartment, [field]: value } : compartment)),
+    )
+  }
+
+  const removeCompartment = (id: string) => {
+    onChange(compartments.filter((compartment) => compartment.id !== id))
+  }
+
+  return (
+    <div className="space-y-4">
+      {compartments.map((compartment, index) => (
+        <div key={compartment.id} className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="w-20 font-medium text-slate-700">Comp {index + 1}</div>
+          <div>
+            <Label htmlFor={`compartment-width-${compartment.id}`} className="sr-only">
+              Width (m)
+            </Label>
+            <Input
+              id={`compartment-width-${compartment.id}`}
+              type="number"
+              min={1}
+              value={compartment.width}
+              onChange={(e) => updateCompartment(compartment.id, "width", Number(e.target.value))}
+              className="w-20"
+              placeholder="Width"
+            />
+          </div>
+          <span>x</span>
+          <div>
+            <Label htmlFor={`compartment-length-${compartment.id}`} className="sr-only">
+              Length (m)
+            </Label>
+            <Input
+              id={`compartment-length-${compartment.id}`}
+              type="number"
+              min={1}
+              value={compartment.length}
+              onChange={(e) => updateCompartment(compartment.id, "length", Number(e.target.value))}
+              className="w-20"
+              placeholder="Length"
+            />
+          </div>
+          <span>m</span>
+          <div>
+            <Label htmlFor={`compartment-count-${compartment.id}`} className="sr-only">
+              Number of bays
+            </Label>
+            <Input
+              id={`compartment-count-${compartment.id}`}
+              type="number"
+              min={1}
+              value={compartment.count}
+              onChange={(e) => updateCompartment(compartment.id, "count", Number(e.target.value))}
+              className="w-20"
+              placeholder="Count"
+            />
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => removeCompartment(compartment.id)}>
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Remove compartment configuration</span>
+          </Button>
+        </div>
+      ))}
+      <Button onClick={addCompartment} className="mt-2 w-full sm:w-auto">
+        <Plus className="h-4 w-4 mr-2" />
+        Add New Compartment
+      </Button>
+    </div>
+  )
+}
+

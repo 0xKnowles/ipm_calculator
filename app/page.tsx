@@ -9,10 +9,14 @@ import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import Image from "next/image"
 import jsPDF from "jspdf"
 import "jspdf-autotable"
 import { SettingsMenu } from "@/components/SettingsMenu"
+import { CompartmentConfigurator, type CompartmentConfig } from "@/components/CompartmentConfigurator"
+import { ConfigurationManager } from "@/components/ConfigurationManager"
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 
 interface PestControlAgent {
   brandedName: string
@@ -114,56 +118,81 @@ const initialPestControlAgents: PestControlAgent[] = [
 ]
 
 interface SelectedAgent {
-  brandedName: string
+  scientificName: string
   desiredPestPerMeter: number
+  selectedCompartments: string[]
 }
 
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D", "#A4DE6C", "#D0ED57", "#FFC658"]
+
 export default function IPMCalculator() {
-  const [treatedBays, setTreatedBays] = useState(15)
   const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>([])
   const [openAgents, setOpenAgents] = useState<string[]>([])
-  const [hasExtraBays, setHasExtraBays] = useState(false)
-  const [bayWidth, setBayWidth] = useState(8)
-  const [bayLength, setBayLength] = useState(50)
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [pestControlAgents, setPestControlAgents] = useState<PestControlAgent[]>(initialPestControlAgents)
+  const [compartments, setCompartments] = useState<CompartmentConfig[]>([{ id: "1", width: 8, length: 50, count: 15 }])
 
-  const baySize = bayWidth * bayLength
-  const treatedSquareMeters = Math.max(1, treatedBays) * baySize
+  const treatedSquareMeters = compartments.reduce(
+    (total, compartment) => total + compartment.width * compartment.length * compartment.count,
+    0,
+  )
 
-  const toggleAgent = (brandedName: string) => {
+  const toggleAgent = (scientificName: string) => {
     setSelectedAgents((prev) =>
-      prev.some((agent) => agent.brandedName === brandedName)
-        ? prev.filter((agent) => agent.brandedName !== brandedName)
-        : [...prev, { brandedName, desiredPestPerMeter: 0 }],
+      prev.some((agent) => agent.scientificName === scientificName)
+        ? prev.filter((agent) => agent.scientificName !== scientificName)
+        : [...prev, { scientificName, desiredPestPerMeter: 0, selectedCompartments: [] }],
     )
   }
 
-  const updateDesiredPestPerMeter = (brandedName: string, value: number) => {
+  const updateDesiredPestPerMeter = (scientificName: string, value: number) => {
     setSelectedAgents((prev) =>
-      prev.map((agent) => (agent.brandedName === brandedName ? { ...agent, desiredPestPerMeter: value } : agent)),
+      prev.map((agent) => (agent.scientificName === scientificName ? { ...agent, desiredPestPerMeter: value } : agent)),
+    )
+  }
+
+  const updateSelectedCompartments = (scientificName: string, compartmentId: string, isSelected: boolean) => {
+    setSelectedAgents((prev) =>
+      prev.map((agent) =>
+        agent.scientificName === scientificName
+          ? {
+              ...agent,
+              selectedCompartments: isSelected
+                ? [...agent.selectedCompartments, compartmentId]
+                : agent.selectedCompartments.filter((id) => id !== compartmentId),
+            }
+          : agent,
+      ),
     )
   }
 
   const calculateBottlesAndCost = (selectedAgent: SelectedAgent) => {
-    const agent = pestControlAgents.find((a) => a.brandedName === selectedAgent.brandedName)
+    const agent = pestControlAgents.find((a) => a.scientificName === selectedAgent.scientificName)
     if (!agent) return null
 
-    const totalPestsNeeded = treatedSquareMeters * selectedAgent.desiredPestPerMeter
+    const selectedCompartmentsArea = compartments
+      .filter((comp) => selectedAgent.selectedCompartments.includes(comp.id))
+      .reduce((total, comp) => total + comp.width * comp.length * comp.count, 0)
+
+    const totalPestsNeeded = selectedCompartmentsArea * selectedAgent.desiredPestPerMeter
     const bottlesNeeded = Math.ceil(totalPestsNeeded / agent.populationPerBottle)
     const totalCost = bottlesNeeded * agent.pricePerBottle
 
-    return { totalPestsNeeded, bottlesNeeded, totalCost }
+    return { totalPestsNeeded, bottlesNeeded, totalCost, treatedArea: selectedCompartmentsArea }
   }
 
-  const totalCost = selectedAgents
-    .map((agent) => calculateBottlesAndCost(agent))
+  const agentCosts = selectedAgents
+    .map((agent) => {
+      const calculation = calculateBottlesAndCost(agent)
+      return calculation ? { name: agent.scientificName, value: calculation.totalCost } : null
+    })
     .filter((result): result is NonNullable<typeof result> => result !== null)
-    .reduce((sum, { totalCost }) => sum + totalCost, 0)
 
-  const toggleAgentCollapsible = (brandedName: string) => {
+  const totalCost = agentCosts.reduce((sum, { value }) => sum + value, 0)
+
+  const toggleAgentCollapsible = (scientificName: string) => {
     setOpenAgents((prev) =>
-      prev.includes(brandedName) ? prev.filter((name) => name !== brandedName) : [...prev, brandedName],
+      prev.includes(scientificName) ? prev.filter((name) => name !== scientificName) : [...prev, scientificName],
     )
   }
 
@@ -174,22 +203,37 @@ export default function IPMCalculator() {
     doc.setFontSize(12)
     doc.text(`Total treated area: ${treatedSquareMeters.toLocaleString()} m²`, 14, 32)
 
+    // Add compartment configuration details
+    doc.setFontSize(14)
+    doc.text("Compartment Configurations:", 14, 42)
+    let yOffset = 52
+    compartments.forEach((compartment, index) => {
+      doc.setFontSize(12)
+      doc.text(
+        `Compartment ${index + 1}: ${compartment.width}m x ${compartment.length}m, ${compartment.count} bays`,
+        20,
+        yOffset,
+      )
+      yOffset += 10
+    })
+
     const tableData = selectedAgents.map((agent) => {
       const calculation = calculateBottlesAndCost(agent)
       if (!calculation) return []
       return [
-        agent.brandedName,
+        agent.scientificName,
         agent.desiredPestPerMeter,
         calculation.totalPestsNeeded.toLocaleString(),
         calculation.bottlesNeeded.toLocaleString(),
         `$${calculation.totalCost.toFixed(2)}`,
+        `${calculation.treatedArea.toLocaleString()} m²`,
       ]
     })
 
     doc.autoTable({
-      head: [["Agent", "Desired Pest/m²", "Total Pests", "Bottles", "Cost"]],
+      head: [["Agent", "Desired Pest/m²", "Total Pests", "Bottles", "Cost", "Treated Area"]],
       body: tableData,
-      startY: 40,
+      startY: yOffset + 10,
     })
 
     doc.setFontSize(14)
@@ -198,9 +242,11 @@ export default function IPMCalculator() {
     doc.save("ipm_calculations.pdf")
   }
 
-  const updateAgentPrice = (brandedName: string, newPrice: number) => {
+  const updateAgentPrice = (scientificName: string, newPrice: number) => {
     setPestControlAgents((prevAgents) =>
-      prevAgents.map((agent) => (agent.brandedName === brandedName ? { ...agent, pricePerBottle: newPrice } : agent)),
+      prevAgents.map((agent) =>
+        agent.scientificName === scientificName ? { ...agent, pricePerBottle: newPrice } : agent,
+      ),
     )
   }
 
@@ -210,14 +256,16 @@ export default function IPMCalculator() {
 
   return (
     <div className="container mx-auto p-4 bg-gradient-to-b from-slate-50 to-white min-h-screen relative">
-      <SettingsMenu pestControlAgents={pestControlAgents} updateAgentPrice={updateAgentPrice} />
+      <div className="absolute top-4 left-4 flex">
+        <SettingsMenu pestControlAgents={pestControlAgents} updateAgentPrice={updateAgentPrice} />
+      </div>
       <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-center text-slate-800">Biological Pest Calculator</h1>
       <div className="flex justify-center mb-6">
         <Image
           src="/logo.PNG"
           alt="IPM Calculator Logo"
-          width={75}
-          height={50}
+          width={55}
+          height={70}
           priority
           onLoad={() => {
             console.log("Logo loaded successfully")
@@ -230,83 +278,37 @@ export default function IPMCalculator() {
         />
       </div>
 
+      <div className="mb-4">
+        <ConfigurationManager
+          currentConfig={{
+            compartments,
+            agentPrices: Object.fromEntries(
+              pestControlAgents.map((agent) => [agent.scientificName, agent.pricePerBottle]),
+            ),
+          }}
+          onLoadConfig={(config) => {
+            setCompartments(config.compartments)
+            setPestControlAgents((prevAgents) =>
+              prevAgents.map((agent) => ({
+                ...agent,
+                pricePerBottle: config.agentPrices[agent.scientificName] || agent.pricePerBottle,
+              })),
+            )
+          }}
+        />
+      </div>
+
       <Card className="mb-8 shadow-lg border-slate-200">
         <CardHeader className="bg-slate-100">
           <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
-            <Leaf className="mr-2 text-teal-600" /> Bay Configuration
+            <Leaf className="mr-2 text-teal-600" /> Compartment Configuration
           </CardTitle>
-          <CardDescription>Adjust bay size and number of bays to treat</CardDescription>
+          <CardDescription>Configure multiple compartment sizes for your greenhouse</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="flex flex-col items-center justify-center gap-4">
-            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
-              <div>
-                <Label htmlFor="bay-width" className="text-sm text-slate-700">
-                  Bay Width (m)
-                </Label>
-                <Input
-                  id="bay-width"
-                  type="number"
-                  min={1}
-                  value={bayWidth}
-                  onChange={(e) => setBayWidth(Number(e.target.value))}
-                  className="border-slate-300 focus:border-teal-500 focus:ring-teal-500"
-                />
-              </div>
-              <div>
-                <Label htmlFor="bay-length" className="text-sm text-slate-700">
-                  Bay Length (m)
-                </Label>
-                <Input
-                  id="bay-length"
-                  type="number"
-                  min={1}
-                  value={bayLength}
-                  onChange={(e) => setBayLength(Number(e.target.value))}
-                  className="border-slate-300 focus:border-teal-500 focus:ring-teal-500"
-                />
-              </div>
-            </div>
-            <div className="text-sm text-slate-600">Bay Size: {baySize} m²</div>
-            <Label htmlFor="treated-bays" className="text-lg text-slate-700">
-              Number of Bays to Treat: {treatedBays}
-            </Label>
-            <Slider
-              id="treated-bays"
-              min={1}
-              max={15}
-              step={1}
-              value={[treatedBays]}
-              onValueChange={(value) => setTreatedBays(value[0])}
-              className="w-[300px]"
-            />
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                type="checkbox"
-                id="extra-bays"
-                checked={hasExtraBays}
-                onChange={(e) => setHasExtraBays(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-              />
-              <Label htmlFor="extra-bays" className="text-slate-700">
-                Add extra bays
-              </Label>
-            </div>
-            {hasExtraBays && (
-              <div className="flex items-center gap-2 mt-2">
-                <Label htmlFor="extra-bays-input" className="text-slate-700">
-                  Extra bays:
-                </Label>
-                <Input
-                  id="extra-bays-input"
-                  type="number"
-                  min={1}
-                  value={treatedBays > 15 ? treatedBays - 15 : 0}
-                  onChange={(e) => setTreatedBays(15 + Number(e.target.value))}
-                  className="w-20 border-slate-300 focus:border-teal-500 focus:ring-teal-500"
-                />
-              </div>
-            )}
+          <CompartmentConfigurator compartments={compartments} onChange={setCompartments} />
+          <div className="mt-4 text-sm text-slate-600">
+            Total Treated Area: {treatedSquareMeters.toLocaleString()} m²
           </div>
         </CardContent>
       </Card>
@@ -321,25 +323,24 @@ export default function IPMCalculator() {
         <CardContent>
           <div className="space-y-4">
             {pestControlAgents.map((agent) => (
-              <div key={agent.brandedName} className="border rounded-lg bg-white overflow-hidden border-slate-200">
+              <div key={agent.scientificName} className="border rounded-lg bg-white overflow-hidden border-slate-200">
                 <div className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedAgents.some((a) => a.brandedName === agent.brandedName)}
-                        onChange={() => toggleAgent(agent.brandedName)}
+                      <Checkbox
+                        checked={selectedAgents.some((a) => a.scientificName === agent.scientificName)}
+                        onCheckedChange={() => toggleAgent(agent.scientificName)}
                         className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                       />
-                      <span className="font-medium text-slate-700">{agent.brandedName}</span>
+                      <span className="font-medium text-slate-700">{agent.scientificName}</span>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => toggleAgentCollapsible(agent.brandedName)}
+                      onClick={() => toggleAgentCollapsible(agent.scientificName)}
                       className="text-slate-600 hover:text-slate-800"
                     >
-                      {openAgents.includes(agent.brandedName) ? (
+                      {openAgents.includes(agent.scientificName) ? (
                         <ChevronUp className="h-4 w-4" />
                       ) : (
                         <ChevronDown className="h-4 w-4" />
@@ -347,10 +348,10 @@ export default function IPMCalculator() {
                     </Button>
                   </div>
                 </div>
-                {openAgents.includes(agent.brandedName) && (
+                {openAgents.includes(agent.scientificName) && (
                   <div className="p-4 bg-slate-50">
                     <Separator className="my-2" />
-                    <div className="text-sm text-slate-600 mb-2">{agent.scientificName}</div>
+                    <div className="text-sm text-slate-600 mb-2">{agent.brandedName}</div>
                     <div className="text-sm text-slate-600 mb-2">
                       Method:{" "}
                       <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800">
@@ -360,20 +361,23 @@ export default function IPMCalculator() {
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                       <div className="flex items-center gap-2">
                         <Label
-                          htmlFor={`pest-density-${agent.brandedName}`}
+                          htmlFor={`pest-density-${agent.scientificName}`}
                           className="text-sm whitespace-nowrap text-slate-700"
                         >
                           Desired Pest/m²:
                         </Label>
                         <Input
-                          id={`pest-density-${agent.brandedName}`}
+                          id={`pest-density-${agent.scientificName}`}
                           type="number"
+                          min={0}
+                          step="0.01"
                           value={
-                            selectedAgents.find((a) => a.brandedName === agent.brandedName)?.desiredPestPerMeter || 0
+                            selectedAgents.find((a) => a.scientificName === agent.scientificName)
+                              ?.desiredPestPerMeter || 0
                           }
-                          onChange={(e) => updateDesiredPestPerMeter(agent.brandedName, Number(e.target.value))}
-                          disabled={!selectedAgents.some((a) => a.brandedName === agent.brandedName)}
-                          className="w-20 border-slate-300 focus:border-teal-500 focus:ring-teal-500"
+                          onChange={(e) => updateDesiredPestPerMeter(agent.scientificName, Number(e.target.value))}
+                          disabled={!selectedAgents.some((a) => a.scientificName === agent.scientificName)}
+                          className="w-24"
                         />
                       </div>
                       <div className="text-sm text-slate-600">
@@ -381,6 +385,30 @@ export default function IPMCalculator() {
                       </div>
                       <div className="text-sm font-semibold text-slate-700">
                         ${agent.pricePerBottle.toFixed(2)}/bottle
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Label className="text-sm font-medium text-slate-700">Select Compartments:</Label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                        {compartments.map((compartment) => (
+                          <div key={compartment.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${agent.scientificName}-${compartment.id}`}
+                              checked={selectedAgents
+                                .find((a) => a.scientificName === agent.scientificName)
+                                ?.selectedCompartments.includes(compartment.id)}
+                              onCheckedChange={(checked) =>
+                                updateSelectedCompartments(agent.scientificName, compartment.id, checked as boolean)
+                              }
+                            />
+                            <Label
+                              htmlFor={`${agent.scientificName}-${compartment.id}`}
+                              className="text-sm text-slate-600"
+                            >
+                              Compartment {compartment.id}
+                            </Label>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -405,12 +433,13 @@ export default function IPMCalculator() {
               if (!calculation) return null
 
               return (
-                <div key={selectedAgent.brandedName} className="p-4 border rounded-lg bg-white border-slate-200">
-                  <div className="font-medium mb-2 text-slate-700">{selectedAgent.brandedName}</div>
+                <div key={selectedAgent.scientificName} className="p-4 border rounded-lg bg-white border-slate-200">
+                  <div className="font-medium mb-2 text-slate-700">{selectedAgent.scientificName}</div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
                     <div className="text-slate-600">Total Pests: {calculation.totalPestsNeeded.toLocaleString()}</div>
                     <div className="text-slate-600">Bottles: {calculation.bottlesNeeded.toLocaleString()}</div>
                     <div className="font-semibold text-slate-700">Cost: ${calculation.totalCost.toFixed(2)}</div>
+                    <div className="text-slate-600">Treated Area: {calculation.treatedArea.toLocaleString()} m²</div>
                   </div>
                 </div>
               )
@@ -418,6 +447,54 @@ export default function IPMCalculator() {
             <div className="flex justify-between items-center font-bold text-lg p-4 bg-slate-50 rounded-lg">
               <span className="text-slate-700">Total Cost:</span>
               <span className="text-teal-600">${totalCost.toFixed(2)}</span>
+            </div>
+          </div>
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Cost Distribution</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={agentCosts}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="#8884d8"
+                    label
+                  >
+                    {agentCosts.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Bottles Needed</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={selectedAgents.map((agent) => {
+                    const calculation = calculateBottlesAndCost(agent)
+                    return {
+                      name: agent.scientificName,
+                      bottles: calculation ? calculation.bottlesNeeded : 0,
+                    }
+                  })}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="bottles" fill="#8884d8">
+                    {selectedAgents.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </CardContent>
@@ -434,3 +511,4 @@ export default function IPMCalculator() {
     </div>
   )
 }
+

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'IPM Bio Calculator',
+  title: 'IPM Bio Calculator,
   description: 'Created by 0xKnowles',
 }
 

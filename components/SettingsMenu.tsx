@@ -39,7 +39,7 @@ export function SettingsMenu({ pestControlAgents, updateAgentPrice }: SettingsMe
       <PopoverTrigger asChild>
         <Button variant="outline" size="icon" className="absolute top-4 left-4">
           <Settings className="h-4 w-4" />
-          <span className="sr-only">Open Price settings</span>
+          <span className="sr-only">Open price settings</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80">
