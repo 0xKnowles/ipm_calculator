@@ -3,9 +3,19 @@ import { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Save, Upload } from "lucide-react"
 
+type CompartmentConfig = {}
+
 interface Configuration {
   compartments: CompartmentConfig[]
-  agentPrices: Record<string, number>
+  agentSettings: Record<
+    string,
+    {
+      price: number
+      population: number
+      brandedName: string
+      method: string
+    }
+  >
 }
 
 interface ConfigurationManagerProps {

@@ -246,12 +246,19 @@ export default function IPMCalculator() {
     doc.save("ipm_calculations.pdf")
   }
 
-  const updateAgentPrice = (scientificName: string, newPrice: number) => {
+  const updateAgentSettings = (scientificName: string, newPrice: number, newPopulation: number) => {
     setPestControlAgents((prevAgents) =>
       prevAgents.map((agent) =>
-        agent.scientificName === scientificName ? { ...agent, pricePerBottle: newPrice } : agent,
+        agent.scientificName === scientificName
+          ? { ...agent, pricePerBottle: newPrice, populationPerBottle: newPopulation }
+          : agent,
       ),
     )
+  }
+
+  const addNewAgent = (newAgent: PestControlAgent) => {
+    setPestControlAgents((prevAgents) => [...prevAgents, newAgent])
+    setOpenAgents((prev) => [...prev, newAgent.scientificName]) // Automatically open the new agent's details
   }
 
   useEffect(() => {
@@ -265,12 +272,27 @@ export default function IPMCalculator() {
     if (savedConfig) {
       const parsedConfig = JSON.parse(savedConfig)
       setCompartments(parsedConfig.compartments)
-      setPestControlAgents((prevAgents) =>
-        prevAgents.map((agent) => ({
+      setPestControlAgents((prevAgents) => {
+        const updatedAgents = prevAgents.map((agent) => ({
           ...agent,
-          pricePerBottle: parsedConfig.agentPrices[agent.scientificName] || agent.pricePerBottle,
-        })),
-      )
+          pricePerBottle: parsedConfig.agentSettings[agent.scientificName]?.price || agent.pricePerBottle,
+          populationPerBottle:
+            parsedConfig.agentSettings[agent.scientificName]?.population || agent.populationPerBottle,
+        }))
+
+        // Add new agents that are in the saved config but not in the initial list
+        const newAgents = Object.entries(parsedConfig.agentSettings)
+          .filter(([name]) => !prevAgents.some((agent) => agent.scientificName === name))
+          .map(([name, settings]) => ({
+            scientificName: name,
+            brandedName: settings.brandedName,
+            pricePerBottle: settings.price,
+            populationPerBottle: settings.population,
+            method: settings.method,
+          }))
+
+        return [...updatedAgents, ...newAgents]
+      })
       setSelectedAgents(parsedConfig.selectedAgents)
     }
 
@@ -281,7 +303,17 @@ export default function IPMCalculator() {
   useEffect(() => {
     const config = {
       compartments,
-      agentPrices: Object.fromEntries(pestControlAgents.map((agent) => [agent.scientificName, agent.pricePerBottle])),
+      agentSettings: Object.fromEntries(
+        pestControlAgents.map((agent) => [
+          agent.scientificName,
+          {
+            price: agent.pricePerBottle,
+            population: agent.populationPerBottle,
+            brandedName: agent.brandedName,
+            method: agent.method,
+          },
+        ]),
+      ),
       selectedAgents,
     }
     localStorage.setItem("ipmCalculatorConfig", JSON.stringify(config))
@@ -292,11 +324,9 @@ export default function IPMCalculator() {
       <WelcomeModal open={showWelcomeModal} onOpenChange={setShowWelcomeModal} />
       <div className="absolute top-4 left-4 flex">
         <SettingsMenu
-          pestControlAgents={pestControlAgents.map((agent) => ({
-            name: agent.scientificName,
-            pricePerBottle: agent.pricePerBottle,
-          }))}
-          updateAgentPrice={updateAgentPrice}
+          pestControlAgents={pestControlAgents}
+          updateAgentSettings={updateAgentSettings}
+          addNewAgent={addNewAgent}
         />
       </div>
       <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-center text-slate-800">Biological Pest Calculator</h1>
@@ -304,8 +334,8 @@ export default function IPMCalculator() {
         <Image
           src="/logo.PNG"
           alt="IPM Calculator Logo"
-          width={45}
-          height={25}
+          width={200}
+          height={100}
           priority
           onLoad={() => {
             console.log("Logo loaded successfully")
