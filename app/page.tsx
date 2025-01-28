@@ -334,8 +334,8 @@ export default function IPMCalculator() {
         <Image
           src="/logo.PNG"
           alt="IPM Calculator Logo"
-          width={200}
-          height={100}
+          width={70}
+          height={55}
           priority
           onLoad={() => {
             console.log("Logo loaded successfully")
