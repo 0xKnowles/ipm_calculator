@@ -1,21 +1,14 @@
-import type React from "react"
 import { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Save, Upload } from "lucide-react"
-
-type CompartmentConfig = {}
+import type { CompartmentConfig } from "@/components/CompartmentConfigurator"
+import type { PestControlAgent, SelectedAgent } from "@/types/biocontrol"
+import type React from "react" // Added import for React
 
 interface Configuration {
   compartments: CompartmentConfig[]
-  agentSettings: Record<
-    string,
-    {
-      price: number
-      population: number
-      brandedName: string
-      method: string
-    }
-  >
+  pestControlAgents: PestControlAgent[]
+  selectedAgents: SelectedAgent[]
 }
 
 interface ConfigurationManagerProps {
