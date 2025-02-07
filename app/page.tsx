@@ -431,6 +431,15 @@ export default function IPMCalculator() {
         />
       </div>
 
+      <Alert className="mb-6 bg-amber-50 border-amber-200 text-amber-800">
+        <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <AlertTitle className="text-amber-800 font-semibold">Reminder</AlertTitle>
+        <AlertDescription className="text-amber-700">
+          Please ensure you have set up your greenhouse compartments, added your biological control agents, and modified
+          the pricing to match your local suppliers before proceeding with calculations.
+        </AlertDescription>
+      </Alert>
+
       <div className="mb-4">
         <ConfigurationManager
           currentConfig={{
