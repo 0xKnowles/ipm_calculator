@@ -1,4 +1,3 @@
-import React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -53,7 +52,10 @@ export function CompartmentConfigurator({ compartments, onChange }: CompartmentC
             <Edit2 className="h-4 w-4 text-slate-400" />
           </div>
           <div>
-            <Label htmlFor={`compartment-width-${compartment.id}`} className="text-xs text-slate-500">
+            <Label
+              htmlFor={`compartment-width-${compartment.id}`}
+              className="text-xs text-slate-500 dark:text-slate-400"
+            >
               Width
             </Label>
             <Input
@@ -62,13 +64,16 @@ export function CompartmentConfigurator({ compartments, onChange }: CompartmentC
               min={1}
               value={compartment.width}
               onChange={(e) => updateCompartment(compartment.id, "width", Number(e.target.value))}
-              className="w-20"
+              className="w-20 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100"
               placeholder="Width"
             />
           </div>
           <span>x</span>
           <div>
-            <Label htmlFor={`compartment-length-${compartment.id}`} className="text-xs text-slate-500">
+            <Label
+              htmlFor={`compartment-length-${compartment.id}`}
+              className="text-xs text-slate-500 dark:text-slate-400"
+            >
               Height
             </Label>
             <Input
@@ -77,13 +82,16 @@ export function CompartmentConfigurator({ compartments, onChange }: CompartmentC
               min={1}
               value={compartment.length}
               onChange={(e) => updateCompartment(compartment.id, "length", Number(e.target.value))}
-              className="w-20"
+              className="w-20 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100"
               placeholder="Height"
             />
           </div>
           <span>m</span>
           <div>
-            <Label htmlFor={`compartment-count-${compartment.id}`} className="text-xs text-slate-500">
+            <Label
+              htmlFor={`compartment-count-${compartment.id}`}
+              className="text-xs text-slate-500 dark:text-slate-400"
+            >
               # of Bays
             </Label>
             <Input
@@ -92,7 +100,7 @@ export function CompartmentConfigurator({ compartments, onChange }: CompartmentC
               min={1}
               value={compartment.count}
               onChange={(e) => updateCompartment(compartment.id, "count", Number(e.target.value))}
-              className="w-20"
+              className="w-20 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100"
               placeholder="Count"
             />
           </div>
@@ -102,7 +110,10 @@ export function CompartmentConfigurator({ compartments, onChange }: CompartmentC
           </Button>
         </div>
       ))}
-      <Button onClick={addCompartment} className="mt-2 w-full sm:w-auto">
+      <Button
+        onClick={addCompartment}
+        className="mt-2 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600"
+      >
         <Plus className="h-4 w-4 mr-2" />
         Add New Compartment
       </Button>

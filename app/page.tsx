@@ -4,10 +4,9 @@ import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Leaf, Bug, DollarSign, ChevronDown, ChevronUp, FileDown, AlertTriangle } from "lucide-react"
+import { Leaf, Bug, DollarSign, ChevronDown, ChevronUp, AlertTriangle, Sun, Moon } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -19,7 +18,10 @@ import { CompartmentConfigurator, type CompartmentConfig } from "@/components/Co
 import { ConfigurationManager } from "@/components/ConfigurationManager"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { WelcomeModal } from "@/components/WelcomeModal"
-import type { PestControlAgent } from "@/types/biocontrol"
+import { useTheme } from "next-themes"
+import { GreenhouseVisualizer } from "@/components/GreenhouseVisualizer"
+import { PDFCustomizer, type PDFOptions } from "@/components/PDFCustomizer"
+import html2canvas from "html2canvas"
 
 interface PestControlAgent {
   brandedNames: { name: string }[]
@@ -137,6 +139,18 @@ export default function IPMCalculator() {
     { id: "1", name: "Comp 1", width: 8, length: 50, count: 15 },
   ])
   const [showWelcomeModal, setShowWelcomeModal] = useState(true)
+  const [isControlsExpanded, setIsControlsExpanded] = useState(false) // Changed initial state to false
+  const { theme, setTheme } = useTheme()
+
+  useEffect(() => {
+    const savedConfig = localStorage.getItem("ipmCalculatorConfig")
+    if (savedConfig) {
+      const parsedConfig = JSON.parse(savedConfig)
+      setCompartments(parsedConfig.compartments || [])
+      setPestControlAgents(parsedConfig.pestControlAgents || [])
+      setSelectedAgents(parsedConfig.selectedAgents || [])
+    }
+  }, [])
 
   const treatedSquareMeters = compartments.reduce(
     (total, compartment) => total + compartment.width * compartment.length * compartment.count,
@@ -202,8 +216,8 @@ export default function IPMCalculator() {
     )
   }
 
-  const exportToPDF = () => {
-    const doc = new jsPDF()
+  const exportToPDF = async (options: PDFOptions) => {
+    const doc = new jsPDF(options.orientation, "mm", "a4")
     const pageWidth = doc.internal.pageSize.width
     const pageHeight = doc.internal.pageSize.height
     const margin = 14
@@ -230,12 +244,22 @@ export default function IPMCalculator() {
     }
 
     // Title and Date
-    yPos += addCenteredText("IPM Calculator Report", yPos, 24)
+    yPos += addCenteredText(options.title, yPos, 24)
     yPos += 5
     doc.setFontSize(10)
     doc.setTextColor(100, 100, 100)
     doc.text(`Generated on ${new Date().toLocaleDateString()}`, margin, yPos)
     yPos += 10
+
+    // Add notes if provided
+    if (options.notes) {
+      yPos += addSectionHeader("Notes", yPos)
+      yPos += 8
+      doc.setFontSize(10)
+      const splitNotes = doc.splitTextToSize(options.notes, pageWidth - 2 * margin)
+      doc.text(splitNotes, margin, yPos)
+      yPos += splitNotes.length * 5 + 10
+    }
 
     // Summary Statistics
     yPos += addSectionHeader("Summary Statistics", yPos)
@@ -254,108 +278,136 @@ export default function IPMCalculator() {
     yPos += 25
 
     // Compartment Configurations
-    yPos += addSectionHeader("Compartment Configurations", yPos)
-    yPos += 5
-    doc.autoTable({
-      startY: yPos,
-      head: [["Compartment", "Width (m)", "Length (m)", "Bays", "Total Area (m²)"]],
-      body: compartments.map((comp) => [
-        comp.name,
-        comp.width.toString(),
-        comp.length.toString(),
-        comp.count.toString(),
-        (comp.width * comp.length * comp.count).toLocaleString(),
-      ]),
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [0, 150, 136] },
-    })
-    yPos = (doc as any).lastAutoTable.finalY + 10
-
-    // Check if we need a new page
-    if (yPos > pageHeight - 60) {
-      doc.addPage()
-      yPos = margin
-    }
-
-    // Agent Details and Calculations
-    yPos += addSectionHeader("Biocontrol Agent Details", yPos)
-    yPos += 5
-
-    selectedAgents.forEach((selectedAgent) => {
-      const agent = pestControlAgents.find((a) => a.scientificName === selectedAgent.scientificName)
-      const calculation = calculateUnitsAndCost(selectedAgent)
-
-      if (!agent || !calculation) return
-
-      // Check if we need a new page
-      if (yPos > pageHeight - 80) {
+    if (options.includeCompartments) {
+      if (yPos > pageHeight - 60) {
         doc.addPage()
         yPos = margin
       }
-
-      // Agent Header
-      doc.setFont(undefined, "bold")
-      doc.setFontSize(11)
-      doc.text(agent.scientificName, margin, yPos)
+      yPos += addSectionHeader("Compartment Configurations", yPos)
       yPos += 5
-
-      // Agent Details
-      doc.setFont(undefined, "normal")
-      doc.setFontSize(10)
-      const details = [
-        `Branded Names: ${agent.brandedNames.map((bn) => bn.name).join(", ")}`,
-        `Price per Unit: $${agent.pricePerUnit.toFixed(2)}`,
-        `Population per Unit: ${agent.populationPerUnit.toLocaleString()}`,
-        `Desired Pest Density: ${selectedAgent.desiredPestPerMeter}/m²`,
-        `Selected Compartments: ${selectedAgent.selectedCompartments
-          .map((id) => compartments.find((c) => c.id === id)?.name)
-          .filter(Boolean)
-          .join(", ")}`,
-        "",
-        "Calculations:",
-        `• Total Area: ${calculation.treatedArea.toLocaleString()} m²`,
-        `• Total Pests Needed: ${calculation.totalPestsNeeded.toLocaleString()}`,
-        `• Units Required: ${calculation.unitsNeeded.toLocaleString()}`,
-        `• Total Cost: $${calculation.totalCost.toFixed(2)}`,
-      ]
-
-      doc.setTextColor(60, 60, 60)
-      details.forEach((detail) => {
-        doc.text(detail, margin + 5, yPos)
-        yPos += 5
+      doc.autoTable({
+        startY: yPos,
+        head: [["Compartment", "Width (m)", "Length (m)", "Bays", "Total Area (m²)"]],
+        body: compartments.map((comp) => [
+          comp.name,
+          comp.width.toString(),
+          comp.length.toString(),
+          comp.count.toString(),
+          (comp.width * comp.length * comp.count).toLocaleString(),
+        ]),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [0, 150, 136] },
       })
-      yPos += 5
-    })
+      yPos = (doc as any).lastAutoTable.finalY + 10
+    }
 
-    // Check if we need a new page for the cost breakdown
-    if (yPos > pageHeight - 100) {
-      doc.addPage()
-      yPos = margin
+    // Agent Details
+    if (options.includeAgentDetails) {
+      if (yPos > pageHeight - 60) {
+        doc.addPage()
+        yPos = margin
+      }
+      yPos += addSectionHeader("Biocontrol Agent Details", yPos)
+      yPos += 5
+
+      for (const selectedAgent of selectedAgents) {
+        const agent = pestControlAgents.find((a) => a.scientificName === selectedAgent.scientificName)
+        const calculation = calculateUnitsAndCost(selectedAgent)
+
+        if (!agent || !calculation) continue
+
+        if (yPos > pageHeight - 80) {
+          doc.addPage()
+          yPos = margin
+        }
+
+        doc.setFont(undefined, "bold")
+        doc.setFontSize(11)
+        doc.text(agent.scientificName, margin, yPos)
+        yPos += 5
+
+        doc.setFont(undefined, "normal")
+        doc.setFontSize(10)
+        const details = [
+          `Branded Names: ${agent.brandedNames.map((bn) => bn.name).join(", ")}`,
+          `Price per Unit: $${agent.pricePerUnit.toFixed(2)}`,
+          `Population per Unit: ${agent.populationPerUnit.toLocaleString()}`,
+          `Desired Pest Density: ${selectedAgent.desiredPestPerMeter}/m²`,
+          `Selected Compartments: ${selectedAgent.selectedCompartments
+            .map((id) => compartments.find((c) => c.id === id)?.name)
+            .filter(Boolean)
+            .join(", ")}`,
+          "",
+          "Calculations:",
+          `• Total Area: ${calculation.treatedArea.toLocaleString()} m²`,
+          `• Total Pests Needed: ${calculation.totalPestsNeeded.toLocaleString()}`,
+          `• Units Required: ${calculation.unitsNeeded.toLocaleString()}`,
+          `• Total Cost: $${calculation.totalCost.toFixed(2)}`,
+        ]
+
+        doc.setTextColor(60, 60, 60)
+        details.forEach((detail) => {
+          if (yPos > pageHeight - 20) {
+            doc.addPage()
+            yPos = margin
+          }
+          doc.text(detail, margin + 5, yPos)
+          yPos += 5
+        })
+        yPos += 5
+      }
     }
 
     // Cost Breakdown
-    yPos += addSectionHeader("Cost Breakdown", yPos)
-    yPos += 5
-    doc.autoTable({
-      startY: yPos,
-      head: [["Agent", "Units", "Cost per Unit", "Total Cost", "% of Total"]],
-      body: selectedAgents
-        .map((agent) => {
-          const calculation = calculateUnitsAndCost(agent)
-          const agentData = pestControlAgents.find((a) => a.scientificName === agent.scientificName)
-          if (!calculation || !agentData) return []
-          return [
-            agent.scientificName,
-            calculation.unitsNeeded.toString(),
-            `$${agentData.pricePerUnit.toFixed(2)}`,
-            `$${calculation.totalCost.toFixed(2)}`,
-            `${((calculation.totalCost / totalCost) * 100).toFixed(1)}%`,
-          ]
-        })
-        .filter((row) => row.length > 0),
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [0, 150, 136] },
-    })
+    if (options.includeCostBreakdown) {
+      if (yPos > pageHeight - 100) {
+        doc.addPage()
+        yPos = margin
+      }
+      yPos += addSectionHeader("Cost Breakdown", yPos)
+      yPos += 5
+      doc.autoTable({
+        startY: yPos,
+        head: [["Agent", "Units", "Cost per Unit", "Total Cost", "% of Total"]],
+        body: selectedAgents
+          .map((agent) => {
+            const calculation = calculateUnitsAndCost(agent)
+            const agentData = pestControlAgents.find((a) => a.scientificName === agent.scientificName)
+            if (!calculation || !agentData) return []
+            return [
+              agent.scientificName,
+              calculation.unitsNeeded.toString(),
+              `$${agentData.pricePerUnit.toFixed(2)}`,
+              `$${calculation.totalCost.toFixed(2)}`,
+              `${((calculation.totalCost / totalCost) * 100).toFixed(1)}%`,
+            ]
+          })
+          .filter((row) => row.length > 0),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [0, 150, 136] },
+      })
+    }
+
+    // Visual Layout
+    if (options.includeVisualLayout) {
+      const visualizerElement = document.querySelector(".greenhouse-visualizer svg")
+      if (visualizerElement) {
+        if (yPos > pageHeight - 100) {
+          doc.addPage()
+          yPos = margin
+        }
+        yPos += addSectionHeader("Visual Distribution", yPos)
+        yPos += 10
+
+        const canvas = await html2canvas(visualizerElement as HTMLElement)
+        const imgData = canvas.toDataURL("image/png")
+        const imgWidth = pageWidth - 2 * margin
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+        doc.addImage(imgData, "PNG", margin, yPos, imgWidth, imgHeight)
+        yPos += imgHeight + 10
+      }
+    }
 
     // Footer
     const pageCount = doc.internal.getNumberOfPages()
@@ -402,24 +454,57 @@ export default function IPMCalculator() {
     console.log("Component mounted, attempting to load logo")
   }, [])
 
+  useEffect(() => {
+    const configToSave = {
+      compartments,
+      pestControlAgents,
+      selectedAgents,
+    }
+    localStorage.setItem("ipmCalculatorConfig", JSON.stringify(configToSave))
+  }, [compartments, pestControlAgents, selectedAgents])
+
   return (
-    <div className="container mx-auto p-4 bg-gradient-to-b from-slate-50 to-white min-h-screen relative">
+    <div className="container mx-auto p-4 sm:p-6 bg-gradient-to-b from-slate-50 to-white dark:from-gray-900 dark:to-gray-800 min-h-screen relative text-slate-900 dark:text-slate-100">
       <WelcomeModal open={showWelcomeModal} onOpenChange={setShowWelcomeModal} />
-      <div className="absolute top-4 left-4 flex">
-        <SettingsMenu
-          pestControlAgents={pestControlAgents}
-          updateAgentSettings={updateAgentSettings}
-          addNewAgent={addNewAgent}
-          deleteAgent={deleteAgent}
-        />
+      <div className="fixed top-4 left-0 z-40 flex items-start">
+        <button
+          onClick={() => setIsControlsExpanded(!isControlsExpanded)}
+          className="relative z-50 h-[88px] w-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-r-md flex items-center justify-center transition-colors"
+          aria-label={isControlsExpanded ? "Collapse controls" : "Expand controls"}
+        >
+          <div className="text-slate-600 dark:text-slate-400">{isControlsExpanded ? "◀" : "▶"}</div>
+        </button>
+        <div
+          className={`
+            absolute left-5 flex flex-col gap-2 transition-transform duration-200 
+            ${isControlsExpanded ? "translate-x-0" : "-translate-x-full"}
+          `}
+        >
+          <div className="pl-2">
+            <SettingsMenu
+              pestControlAgents={pestControlAgents}
+              updateAgentSettings={updateAgentSettings}
+              addNewAgent={addNewAgent}
+              deleteAgent={deleteAgent}
+            />
+          </div>
+          <div className="pl-2">
+            <Button variant="outline" size="icon" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+              {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+          </div>
+        </div>
       </div>
-      <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-center text-slate-800">Biological Pest Calculator</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-4 text-center text-slate-800 dark:text-slate-100">
+        Biological Pest Calculator
+      </h1>
       <div className="flex justify-center mb-6">
         <Image
           src="/logo.PNG"
           alt="IPM Calculator Logo"
-          width={60}
-          height={60}
+          width={200}
+          height={100}
           priority
           onLoad={() => {
             console.log("Logo loaded successfully")
@@ -431,16 +516,14 @@ export default function IPMCalculator() {
           }}
         />
       </div>
-
-      <Alert className="mb-6 bg-amber-50 border-amber-200 text-amber-800">
+      <Alert className="mb-6 bg-amber-50 dark:bg-amber-900 border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-100">
         <AlertTriangle className="h-4 w-4 text-amber-600" />
-        <AlertTitle className="text-amber-800 font-semibold">Reminder</AlertTitle>
-        <AlertDescription className="text-amber-700">
+        <AlertTitle className="text-amber-800 dark:text-amber-100 font-semibold">Reminder</AlertTitle>
+        <AlertDescription className="text-amber-700 dark:text-amber-200">
           Please ensure you have set up your greenhouse compartments, added your biological control agents, and modified
           the pricing to match your local suppliers before proceeding with calculations.
         </AlertDescription>
       </Alert>
-
       <div className="mb-4">
         <ConfigurationManager
           currentConfig={{
@@ -455,10 +538,9 @@ export default function IPMCalculator() {
           }}
         />
       </div>
-
-      <Card className="mb-8 shadow-lg border-slate-200">
-        <CardHeader className="bg-slate-100">
-          <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
+      <Card className="mb-4 sm:mb-8 shadow-lg border-slate-200 dark:border-slate-700 dark:bg-gray-800">
+        <CardHeader className="bg-slate-100 dark:bg-gray-700">
+          <CardTitle className="text-xl sm:text-2xl text-slate-800 dark:text-slate-100 flex items-center">
             <Leaf className="mr-2 text-teal-600" /> Compartment Configuration
           </CardTitle>
           <CardDescription>Configure multiple compartment sizes for your greenhouse</CardDescription>
@@ -470,10 +552,9 @@ export default function IPMCalculator() {
           </div>
         </CardContent>
       </Card>
-
-      <Card className="mb-8 shadow-lg border-slate-200">
-        <CardHeader className="bg-slate-100">
-          <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
+      <Card className="mb-4 sm:mb-8 shadow-lg border-slate-200 dark:border-slate-700 dark:bg-gray-800">
+        <CardHeader className="bg-slate-100 dark:bg-gray-700">
+          <CardTitle className="text-xl sm:text-2xl text-slate-800 dark:text-slate-100 flex items-center">
             <Bug className="mr-2 text-teal-600" /> Select Biological Control Agents
           </CardTitle>
           <CardDescription>Choose agents and set desired pest density per m²</CardDescription>
@@ -585,10 +666,14 @@ export default function IPMCalculator() {
           </div>
         </CardContent>
       </Card>
-
-      <Card className="shadow-lg border-slate-200">
-        <CardHeader className="bg-slate-100">
-          <CardTitle className="text-xl sm:text-2xl text-slate-800 flex items-center">
+      <GreenhouseVisualizer
+        compartments={compartments}
+        selectedAgents={selectedAgents}
+        className="greenhouse-visualizer"
+      />
+      <Card className="mb-4 sm:mb-8 shadow-lg border-slate-200 dark:border-slate-700 dark:bg-gray-800">
+        <CardHeader className="bg-slate-100 dark:bg-gray-700">
+          <CardTitle className="text-xl sm:text-2xl text-slate-800 dark:text-slate-100 flex items-center">
             <DollarSign className="mr-2 text-teal-600" /> Order Calculations
           </CardTitle>
           <CardDescription>Total treated area: {treatedSquareMeters.toLocaleString()} m²</CardDescription>
@@ -611,12 +696,12 @@ export default function IPMCalculator() {
                 </div>
               )
             })}
-            <div className="flex justify-between items-center font-bold text-lg p-4 bg-slate-50 rounded-lg">
+            <div className="flex justify-between items-center font-bold text-lg p-4 bg-slate-50 dark:bg-gray-700 rounded-lg">
               <span className="text-slate-700">Total Cost:</span>
               <span className="text-teal-600">${totalCost.toFixed(2)}</span>
             </div>
           </div>
-          <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
             <div>
               <h3 className="text-lg font-semibold mb-4">Cost Distribution</h3>
               <ResponsiveContainer width="100%" height={300}>
@@ -667,12 +752,11 @@ export default function IPMCalculator() {
         </CardContent>
         <CardFooter className="bg-slate-50 text-sm text-slate-600 flex flex-col sm:flex-row justify-between items-center p-4">
           <p className="mb-4 sm:mb-0">
-            Calculations are based on desired pest density per square meter. Adjust as needed based on pest pressure and
-            environmental conditions.
+            Calculations are based on desired pest density per square meter. Adjust as neededCalculations are based on
+            desired pest density per square meter. Adjust desired pest density per square meter. Adjust as needed based
+            on pest pressure and environmental conditions.
           </p>
-          <Button onClick={exportToPDF} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white">
-            <FileDown className="mr-2 h-4 w-4" /> Export PDF
-          </Button>
+          <PDFCustomizer onExport={exportToPDF} />
         </CardFooter>
       </Card>
     </div>
