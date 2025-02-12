@@ -9,6 +9,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "IPM Calculator",
   description: "Integrated Pest Management Calculator for agricultural professionals",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -27,3 +28,6 @@ export default function RootLayout({
   )
 }
 
+
+
+import './globals.css'

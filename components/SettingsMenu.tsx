@@ -149,7 +149,7 @@ export function SettingsMenu({ pestControlAgents, updateAgentSettings, addNewAge
           <span className="sr-only">Open biocontrol agent settings</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 z-50">
+      <PopoverContent className="w-80 z-[200]" align="center" side="right" sideOffset={5} alignOffset={-50}>
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Biocontrol Agent Settings</CardTitle>

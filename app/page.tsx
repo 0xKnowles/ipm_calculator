@@ -22,6 +22,7 @@ import { useTheme } from "next-themes"
 import { GreenhouseVisualizer } from "@/components/GreenhouseVisualizer"
 import { PDFCustomizer, type PDFOptions } from "@/components/PDFCustomizer"
 import html2canvas from "html2canvas"
+import { ProgramComparison } from "@/components/ProgramComparison"
 
 interface PestControlAgent {
   brandedNames: { name: string }[]
@@ -141,6 +142,23 @@ export default function IPMCalculator() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(true)
   const [isControlsExpanded, setIsControlsExpanded] = useState(false) // Changed initial state to false
   const { theme, setTheme } = useTheme()
+  const [programOrder, setProgramOrder] = useState<{
+    week: number
+    weeklyProgramCost: number
+    agents: { scientificName: string; quantity: number }[]
+  }>({
+    week: 1,
+    weeklyProgramCost: 0,
+    agents: [],
+  })
+
+  const handleSaveProgramOrder = (order: {
+    week: number
+    weeklyProgramCost: number
+    agents: { scientificName: string; quantity: number }[]
+  }) => {
+    setProgramOrder(order)
+  }
 
   useEffect(() => {
     const savedConfig = localStorage.getItem("ipmCalculatorConfig")
@@ -196,9 +214,13 @@ export default function IPMCalculator() {
 
     const totalPestsNeeded = selectedCompartmentsArea * selectedAgent.desiredPestPerMeter
     const unitsNeeded = Math.ceil(totalPestsNeeded / agent.populationPerUnit)
-    const totalCost = unitsNeeded * agent.pricePerUnit
 
-    return { totalPestsNeeded, unitsNeeded, totalCost, treatedArea: selectedCompartmentsArea }
+    const programAgent = programOrder.agents.find((a) => a.scientificName === selectedAgent.scientificName)
+    const programUnits = programAgent ? programAgent.quantity : 0
+    const extraUnits = Math.max(unitsNeeded - programUnits, 0)
+    const totalCost = extraUnits * agent.pricePerUnit
+
+    return { totalPestsNeeded, unitsNeeded, programUnits, extraUnits, totalCost, treatedArea: selectedCompartmentsArea }
   }
 
   const agentCosts = selectedAgents
@@ -208,7 +230,8 @@ export default function IPMCalculator() {
     })
     .filter((result): result is NonNullable<typeof result> => result !== null)
 
-  const totalCost = agentCosts.reduce((sum, { value }) => sum + value, 0)
+  const totalExtraCost = agentCosts.reduce((sum, { value }) => sum + value, 0)
+  const totalCost = programOrder.weeklyProgramCost + totalExtraCost
 
   const toggleAgentCollapsible = (scientificName: string) => {
     setOpenAgents((prev) =>
@@ -270,12 +293,14 @@ export default function IPMCalculator() {
         `Total Treated Area: ${treatedSquareMeters.toLocaleString()} m²`,
         `Number of Compartments: ${compartments.length}`,
         `Selected Agents: ${selectedAgents.length}`,
+        `Weekly Program Cost: $${programOrder.weeklyProgramCost.toFixed(2)}`,
+        `Extra Cost: $${totalExtraCost.toFixed(2)}`,
         `Total Cost: $${totalCost.toFixed(2)}`,
       ],
       margin,
       yPos,
     )
-    yPos += 25
+    yPos += 35
 
     // Compartment Configurations
     if (options.includeCompartments) {
@@ -342,7 +367,9 @@ export default function IPMCalculator() {
           `• Total Area: ${calculation.treatedArea.toLocaleString()} m²`,
           `• Total Pests Needed: ${calculation.totalPestsNeeded.toLocaleString()}`,
           `• Units Required: ${calculation.unitsNeeded.toLocaleString()}`,
-          `• Total Cost: $${calculation.totalCost.toFixed(2)}`,
+          `• Program Units: ${calculation.programUnits.toLocaleString()}`,
+          `• Extra Units: ${calculation.extraUnits.toLocaleString()}`,
+          `• Extra Cost: $${calculation.totalCost.toFixed(2)}`,
         ]
 
         doc.setTextColor(60, 60, 60)
@@ -368,24 +395,32 @@ export default function IPMCalculator() {
       yPos += 5
       doc.autoTable({
         startY: yPos,
-        head: [["Agent", "Units", "Cost per Unit", "Total Cost", "% of Total"]],
+        head: [["Agent", "Units Needed", "Program Units", "Extra Units", "Extra Cost"]],
         body: selectedAgents
           .map((agent) => {
             const calculation = calculateUnitsAndCost(agent)
-            const agentData = pestControlAgents.find((a) => a.scientificName === agent.scientificName)
-            if (!calculation || !agentData) return []
+            if (!calculation) return []
             return [
               agent.scientificName,
               calculation.unitsNeeded.toString(),
-              `$${agentData.pricePerUnit.toFixed(2)}`,
+              calculation.programUnits.toString(),
+              calculation.extraUnits.toString(),
               `$${calculation.totalCost.toFixed(2)}`,
-              `${((calculation.totalCost / totalCost) * 100).toFixed(1)}%`,
             ]
           })
           .filter((row) => row.length > 0),
         styles: { fontSize: 10 },
         headStyles: { fillColor: [0, 150, 136] },
       })
+      yPos = (doc as any).lastAutoTable.finalY + 10
+
+      doc.setFontSize(12)
+      doc.setFont(undefined, "bold")
+      doc.text(`Weekly Program Cost: $${programOrder.weeklyProgramCost.toFixed(2)}`, margin, yPos)
+      yPos += 6
+      doc.text(`Extra Cost: $${totalExtraCost.toFixed(2)}`, margin, yPos)
+      yPos += 6
+      doc.text(`Total Cost: $${totalCost.toFixed(2)}`, margin, yPos)
     }
 
     // Visual Layout
@@ -466,19 +501,22 @@ export default function IPMCalculator() {
   return (
     <div className="container mx-auto p-4 sm:p-6 bg-gradient-to-b from-slate-50 to-white dark:from-gray-900 dark:to-gray-800 min-h-screen relative text-slate-900 dark:text-slate-100">
       <WelcomeModal open={showWelcomeModal} onOpenChange={setShowWelcomeModal} />
-      <div className="fixed top-4 left-0 z-40 flex items-start">
+      <div className="fixed top-4 left-0 z-[100] flex items-start">
+        {" "}
+        {/* Updated z-index */}
         <button
           onClick={() => setIsControlsExpanded(!isControlsExpanded)}
-          className="relative z-50 h-[88px] w-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-r-md flex items-center justify-center transition-colors"
+          className="fixed z-50 left-0 top-4 h-[88px] w-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-r-md flex items-center justify-center transition-colors shadow-md"
           aria-label={isControlsExpanded ? "Collapse controls" : "Expand controls"}
         >
           <div className="text-slate-600 dark:text-slate-400">{isControlsExpanded ? "◀" : "▶"}</div>
         </button>
         <div
           className={`
-            absolute left-5 flex flex-col gap-2 transition-transform duration-200 
-            ${isControlsExpanded ? "translate-x-0" : "-translate-x-full"}
+            absolute left-0 flex flex-col gap-2 transition-transform duration-200 overflow-visible
+            ${isControlsExpanded ? "translate-x-5" : "-translate-x-full opacity-0 pointer-events-none"}
           `}
+          style={{ width: "40px" }}
         >
           <div className="pl-2">
             <SettingsMenu
@@ -494,6 +532,19 @@ export default function IPMCalculator() {
               <span className="sr-only">Toggle theme</span>
             </Button>
           </div>
+          <div className="pl-2">
+            <ProgramComparison
+              pestControlAgents={pestControlAgents}
+              calculatedOrder={selectedAgents.map((agent) => {
+                const calculation = calculateUnitsAndCost(agent)
+                return {
+                  scientificName: agent.scientificName,
+                  unitsNeeded: calculation ? calculation.unitsNeeded : 0,
+                }
+              })}
+              onSaveProgramOrder={handleSaveProgramOrder}
+            />
+          </div>
         </div>
       </div>
       <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-4 text-center text-slate-800 dark:text-slate-100">
@@ -504,7 +555,7 @@ export default function IPMCalculator() {
           src="/logo.PNG"
           alt="IPM Calculator Logo"
           width={50}
-          height={50}
+          height={40}
           priority
           onLoad={() => {
             console.log("Logo loaded successfully")
@@ -674,6 +725,7 @@ export default function IPMCalculator() {
       <Card className="mb-4 sm:mb-8 shadow-lg border-slate-200 dark:border-slate-700 dark:bg-gray-800">
         <CardHeader className="bg-slate-100 dark:bg-gray-700">
           <CardTitle className="text-xl sm:text-2xl text-slate-800 dark:text-slate-100 flex items-center">
+            {" "}
             <DollarSign className="mr-2 text-teal-600" /> Order Calculations
           </CardTitle>
           <CardDescription>Total treated area: {treatedSquareMeters.toLocaleString()} m²</CardDescription>
@@ -689,13 +741,23 @@ export default function IPMCalculator() {
                   <div className="font-medium mb-2 text-slate-700">{selectedAgent.scientificName}</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
                     <div className="text-slate-600">Total Pests: {calculation.totalPestsNeeded.toLocaleString()}</div>
-                    <div className="text-slate-600">Units: {calculation.unitsNeeded.toLocaleString()}</div>
-                    <div className="font-semibold text-slate-700">Cost: ${calculation.totalCost.toFixed(2)}</div>
+                    <div className="text-slate-600">Units Needed: {calculation.unitsNeeded.toLocaleString()}</div>
+                    <div className="text-slate-600">Program Units: {calculation.programUnits.toLocaleString()}</div>
+                    <div className="text-slate-600">Extra Units: {calculation.extraUnits.toLocaleString()}</div>
+                    <div className="font-semibold text-slate-700">Extra Cost: ${calculation.totalCost.toFixed(2)}</div>
                     <div className="text-slate-600">Treated Area: {calculation.treatedArea.toLocaleString()} m²</div>
                   </div>
                 </div>
               )
             })}
+            <div className="flex justify-between items-center font-bold text-lg p-4 bg-slate-50 dark:bg-gray-700 rounded-lg">
+              <span className="text-slate-700">Weekly Program Cost:</span>
+              <span className="text-teal-600">${programOrder.weeklyProgramCost.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center font-bold text-lg p-4 bg-slate-50 dark:bg-gray-700 rounded-lg">
+              <span className="text-slate-700">Extra Cost:</span>
+              <span className="text-teal-600">${totalExtraCost.toFixed(2)}</span>
+            </div>
             <div className="flex justify-between items-center font-bold text-lg p-4 bg-slate-50 dark:bg-gray-700 rounded-lg">
               <span className="text-slate-700">Total Cost:</span>
               <span className="text-teal-600">${totalCost.toFixed(2)}</span>
