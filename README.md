@@ -130,11 +130,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 
 Built with ❤️ for the agricultural community
-
-## Quick Start
-
-```bash
-git clone https://github.com/0xKnowles/ipm-calculator.git
-cd ipm-calculator
-npm install
-npm run dev
