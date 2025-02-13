@@ -1,6 +1,6 @@
 # IPM Calculator
 
-![IPM Calculator](https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Capture.PNG-1ZRstSxiwmyZk936xUKFHvd1QL1LK4.png)
+![IPM Calculator Screenshot](public/example.PNG)
 
 A sophisticated web application for agricultural professionals to calculate and manage biological pest control strategies. This tool helps greenhouse managers and farmers optimize their Integrated Pest Management (IPM) programs by providing precise calculations for beneficial insect quantities and associated costs.
 
