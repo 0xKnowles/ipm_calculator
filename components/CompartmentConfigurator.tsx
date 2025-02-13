@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Plus, Trash2, Edit2 } from "lucide-react"
+import { Plus, X } from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export interface CompartmentConfig {
   id: string
@@ -40,83 +40,88 @@ export function CompartmentConfigurator({ compartments, onChange }: CompartmentC
 
   return (
     <div className="space-y-4">
-      {compartments.map((compartment, index) => (
-        <div key={compartment.id} className="flex flex-wrap items-center gap-2 mb-4">
-          <div className="w-full sm:w-auto flex items-center gap-2 mb-2 sm:mb-0">
-            <Input
-              value={compartment.name}
-              onChange={(e) => updateCompartment(compartment.id, "name", e.target.value)}
-              className="w-40"
-              placeholder={`Comp ${index + 1}`}
-            />
-            <Edit2 className="h-4 w-4 text-slate-400" />
-          </div>
-          <div>
-            <Label
-              htmlFor={`compartment-width-${compartment.id}`}
-              className="text-xs text-slate-500 dark:text-slate-400"
+      <ScrollArea className="h-[300px] pr-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {compartments.map((compartment) => (
+            <div
+              key={compartment.id}
+              className="flex flex-col gap-1 bg-white dark:bg-gray-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700"
             >
-              Width
-            </Label>
-            <Input
-              id={`compartment-width-${compartment.id}`}
-              type="number"
-              min={1}
-              value={compartment.width}
-              onChange={(e) => updateCompartment(compartment.id, "width", Number(e.target.value))}
-              className="w-20 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100"
-              placeholder="Width"
-            />
-          </div>
-          <span>x</span>
-          <div>
-            <Label
-              htmlFor={`compartment-length-${compartment.id}`}
-              className="text-xs text-slate-500 dark:text-slate-400"
-            >
-              Height
-            </Label>
-            <Input
-              id={`compartment-length-${compartment.id}`}
-              type="number"
-              min={1}
-              value={compartment.length}
-              onChange={(e) => updateCompartment(compartment.id, "length", Number(e.target.value))}
-              className="w-20 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100"
-              placeholder="Height"
-            />
-          </div>
-          <span>m</span>
-          <div>
-            <Label
-              htmlFor={`compartment-count-${compartment.id}`}
-              className="text-xs text-slate-500 dark:text-slate-400"
-            >
-              # of Bays
-            </Label>
-            <Input
-              id={`compartment-count-${compartment.id}`}
-              type="number"
-              min={1}
-              value={compartment.count}
-              onChange={(e) => updateCompartment(compartment.id, "count", Number(e.target.value))}
-              className="w-20 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100"
-              placeholder="Count"
-            />
-          </div>
-          <Button variant="ghost" size="icon" onClick={() => removeCompartment(compartment.id)}>
-            <Trash2 className="h-4 w-4" />
-            <span className="sr-only">Remove compartment configuration</span>
-          </Button>
+              <div className="flex items-center gap-1">
+                <Input
+                  value={compartment.name}
+                  onChange={(e) => updateCompartment(compartment.id, "name", e.target.value)}
+                  className="h-7 text-sm flex-1"
+                  placeholder={`Comp ${compartments.indexOf(compartment) + 1}`}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeCompartment(compartment.id)}
+                  className="h-7 w-7 text-slate-500 hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1">
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={compartment.width}
+                    onChange={(e) => updateCompartment(compartment.id, "width", Number(e.target.value))}
+                    className="h-7 text-sm pr-5 text-right"
+                  />
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">m</span>
+                </div>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={compartment.length}
+                    onChange={(e) => updateCompartment(compartment.id, "length", Number(e.target.value))}
+                    className="h-7 text-sm pr-5 text-right"
+                  />
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">m</span>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  value={compartment.count}
+                  onChange={(e) => updateCompartment(compartment.id, "count", Number(e.target.value))}
+                  className="h-7 text-sm text-right"
+                />
+              </div>
+
+              <div className="text-xs text-slate-500 dark:text-slate-400 text-right">
+                Area: {(compartment.width * compartment.length * compartment.count).toLocaleString()} m²
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
-      <Button
-        onClick={addCompartment}
-        className="mt-2 w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600"
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        Add New Compartment
-      </Button>
+      </ScrollArea>
+
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          Total Area:{" "}
+          {compartments.reduce((sum, comp) => sum + comp.width * comp.length * comp.count, 0).toLocaleString()} m²
+        </div>
+        <Button
+          onClick={addCompartment}
+          size="sm"
+          className="bg-teal-600 hover:bg-teal-700 text-white h-7 text-xs rounded-full px-3"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add Compartment
+        </Button>
+      </div>
+
+      <div className="flex gap-2 text-xs text-slate-500 dark:text-slate-400 justify-end">
+        <span>Width (m)</span>
+        <span>Length (m)</span>
+        <span>Bays</span>
+      </div>
     </div>
   )
 }

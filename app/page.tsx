@@ -1,20 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Leaf, Bug, DollarSign, ChevronDown, ChevronUp, AlertTriangle, Sun, Moon } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
+import { Bug, DollarSign, AlertTriangle, Sun, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Image from "next/image"
 import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 import "jspdf-autotable"
 import { SettingsMenu } from "@/components/SettingsMenu"
-import { CompartmentConfigurator, type CompartmentConfig } from "@/components/CompartmentConfigurator"
+import type { CompartmentConfig } from "@/components/CompartmentConfigurator"
 import { ConfigurationManager } from "@/components/ConfigurationManager"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { WelcomeModal } from "@/components/WelcomeModal"
@@ -23,6 +19,8 @@ import { GreenhouseVisualizer } from "@/components/GreenhouseVisualizer"
 import { PDFCustomizer, type PDFOptions } from "@/components/PDFCustomizer"
 import html2canvas from "html2canvas"
 import { ProgramComparison } from "@/components/ProgramComparison"
+import { BioAgentManager } from "@/components/BioAgentManager"
+import { CompartmentConfigModal } from "@/components/CompartmentConfigModal"
 
 interface PestControlAgent {
   brandedNames: { name: string }[]
@@ -140,7 +138,7 @@ export default function IPMCalculator() {
     { id: "1", name: "Comp 1", width: 8, length: 50, count: 15 },
   ])
   const [showWelcomeModal, setShowWelcomeModal] = useState(true)
-  const [isControlsExpanded, setIsControlsExpanded] = useState(false) // Changed initial state to false
+  const [isControlsExpanded, setIsControlsExpanded] = useState(false)
   const { theme, setTheme } = useTheme()
   const [programOrder, setProgramOrder] = useState<{
     week: number
@@ -310,7 +308,7 @@ export default function IPMCalculator() {
       }
       yPos += addSectionHeader("Compartment Configurations", yPos)
       yPos += 5
-      doc.autoTable({
+      autoTable(doc, {
         startY: yPos,
         head: [["Compartment", "Width (m)", "Length (m)", "Bays", "Total Area (m²)"]],
         body: compartments.map((comp) => [
@@ -323,7 +321,7 @@ export default function IPMCalculator() {
         styles: { fontSize: 10 },
         headStyles: { fillColor: [0, 150, 136] },
       })
-      yPos = (doc as any).lastAutoTable.finalY + 10
+      yPos = doc.lastAutoTable.finalY + 10
     }
 
     // Agent Details
@@ -393,7 +391,7 @@ export default function IPMCalculator() {
       }
       yPos += addSectionHeader("Cost Breakdown", yPos)
       yPos += 5
-      doc.autoTable({
+      autoTable(doc, {
         startY: yPos,
         head: [["Agent", "Units Needed", "Program Units", "Extra Units", "Extra Cost"]],
         body: selectedAgents
@@ -412,7 +410,7 @@ export default function IPMCalculator() {
         styles: { fontSize: 10 },
         headStyles: { fillColor: [0, 150, 136] },
       })
-      yPos = (doc as any).lastAutoTable.finalY + 10
+      yPos = doc.lastAutoTable.finalY + 10
 
       doc.setFontSize(12)
       doc.setFont(undefined, "bold")
@@ -502,8 +500,6 @@ export default function IPMCalculator() {
     <div className="container mx-auto p-4 sm:p-6 bg-gradient-to-b from-slate-50 to-white dark:from-gray-900 dark:to-gray-800 min-h-screen relative text-slate-900 dark:text-slate-100">
       <WelcomeModal open={showWelcomeModal} onOpenChange={setShowWelcomeModal} />
       <div className="fixed top-4 left-0 z-[100] flex items-start">
-        {" "}
-        {/* Updated z-index */}
         <button
           onClick={() => setIsControlsExpanded(!isControlsExpanded)}
           className="fixed z-50 left-0 top-4 h-[88px] w-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-r-md flex items-center justify-center transition-colors shadow-md"
@@ -554,8 +550,8 @@ export default function IPMCalculator() {
         <Image
           src="/logo.PNG"
           alt="IPM Calculator Logo"
-          width={50}
-          height={40}
+          width={55}
+          height={35}
           priority
           onLoad={() => {
             console.log("Logo loaded successfully")
@@ -575,7 +571,8 @@ export default function IPMCalculator() {
           the pricing to match your local suppliers before proceeding with calculations.
         </AlertDescription>
       </Alert>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center">
+        <CompartmentConfigModal compartments={compartments} onCompartmentsChange={setCompartments} />
         <ConfigurationManager
           currentConfig={{
             compartments,
@@ -589,132 +586,23 @@ export default function IPMCalculator() {
           }}
         />
       </div>
+      {/* Biocontrol Management */}
       <Card className="mb-4 sm:mb-8 shadow-lg border-slate-200 dark:border-slate-700 dark:bg-gray-800">
         <CardHeader className="bg-slate-100 dark:bg-gray-700">
           <CardTitle className="text-xl sm:text-2xl text-slate-800 dark:text-slate-100 flex items-center">
-            <Leaf className="mr-2 text-teal-600" /> Compartment Configuration
+            <Bug className="mr-2 text-teal-600" /> Biocontrol Management
           </CardTitle>
-          <CardDescription>Configure multiple compartment sizes for your greenhouse</CardDescription>
+          <CardDescription>Select biocontrol agents and configure their application</CardDescription>
         </CardHeader>
-        <CardContent className="pt-6">
-          <CompartmentConfigurator compartments={compartments} onChange={setCompartments} />
-          <div className="mt-4 text-sm text-slate-600">
-            Total Treated Area: {treatedSquareMeters.toLocaleString()} m²
-          </div>
-        </CardContent>
-      </Card>
-      <Card className="mb-4 sm:mb-8 shadow-lg border-slate-200 dark:border-slate-700 dark:bg-gray-800">
-        <CardHeader className="bg-slate-100 dark:bg-gray-700">
-          <CardTitle className="text-xl sm:text-2xl text-slate-800 dark:text-slate-100 flex items-center">
-            <Bug className="mr-2 text-teal-600" /> Select Biological Control Agents
-          </CardTitle>
-          <CardDescription>Choose agents and set desired pest density per m²</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {pestControlAgents.map((agent) => (
-              <div key={agent.scientificName} className="border rounded-lg bg-white overflow-hidden border-slate-200">
-                <div className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={selectedAgents.some((a) => a.scientificName === agent.scientificName)}
-                        onCheckedChange={() => toggleAgent(agent.scientificName)}
-                        className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                      />
-                      <span className="font-medium text-slate-700">{agent.scientificName}</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleAgentCollapsible(agent.scientificName)}
-                      className="text-slate-600 hover:text-slate-800"
-                    >
-                      {openAgents.includes(agent.scientificName) ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                {openAgents.includes(agent.scientificName) && (
-                  <div className="p-4 bg-slate-50">
-                    <Separator className="my-2" />
-                    <div className="text-sm text-slate-600 mb-2">
-                      <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded">
-                        Branded Names
-                      </span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {agent.brandedNames.map((bn, index) => (
-                          <Badge key={index} variant="secondary">
-                            {bn.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="text-sm text-slate-600 mb-2">
-                      Method:{" "}
-                      <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800">
-                        {agent.method}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                      <div className="flex items-center gap-2">
-                        <Label
-                          htmlFor={`pest-density-${agent.scientificName}`}
-                          className="text-sm whitespace-nowrap text-slate-700"
-                        >
-                          Desired Pest/m²:
-                        </Label>
-                        <Input
-                          id={`pest-density-${agent.scientificName}`}
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={
-                            selectedAgents.find((a) => a.scientificName === agent.scientificName)
-                              ?.desiredPestPerMeter || 0
-                          }
-                          onChange={(e) => updateDesiredPestPerMeter(agent.scientificName, Number(e.target.value))}
-                          disabled={!selectedAgents.some((a) => a.scientificName === agent.scientificName)}
-                          className="w-24"
-                        />
-                      </div>
-                      <div className="text-sm text-slate-600">
-                        Population/Unit: {agent.populationPerUnit.toLocaleString()}
-                      </div>
-                      <div className="text-sm font-semibold text-slate-700">${agent.pricePerUnit.toFixed(2)}/unit</div>
-                    </div>
-                    <div className="mt-4">
-                      <Label className="text-sm font-medium text-slate-700">Select Compartments:</Label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-                        {compartments.map((compartment) => (
-                          <div key={compartment.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`${agent.scientificName}-${compartment.id}`}
-                              checked={selectedAgents
-                                .find((a) => a.scientificName === agent.scientificName)
-                                ?.selectedCompartments.includes(compartment.id)}
-                              onCheckedChange={(checked) =>
-                                updateSelectedCompartments(agent.scientificName, compartment.id, checked as boolean)
-                              }
-                            />
-                            <Label
-                              htmlFor={`${agent.scientificName}-${compartment.id}`}
-                              className="text-sm text-slate-600"
-                            >
-                              {compartment.name}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+        <CardContent className="p-4">
+          <BioAgentManager
+            agents={pestControlAgents}
+            selectedAgents={selectedAgents}
+            compartments={compartments}
+            onToggleAgent={toggleAgent}
+            onUpdateDesiredPest={updateDesiredPestPerMeter}
+            onUpdateCompartments={updateSelectedCompartments}
+          />
         </CardContent>
       </Card>
       <GreenhouseVisualizer
@@ -725,7 +613,6 @@ export default function IPMCalculator() {
       <Card className="mb-4 sm:mb-8 shadow-lg border-slate-200 dark:border-slate-700 dark:bg-gray-800">
         <CardHeader className="bg-slate-100 dark:bg-gray-700">
           <CardTitle className="text-xl sm:text-2xl text-slate-800 dark:text-slate-100 flex items-center">
-            {" "}
             <DollarSign className="mr-2 text-teal-600" /> Order Calculations
           </CardTitle>
           <CardDescription>Total treated area: {treatedSquareMeters.toLocaleString()} m²</CardDescription>
@@ -812,7 +699,7 @@ export default function IPMCalculator() {
             </div>
           </div>
         </CardContent>
-        <CardFooter className="bg-slate-50 text-sm text-slate-600 flex flex-col sm:flex-row justify-between items-center p-4">
+        <CardFooter className="bg-slate-50 text-sm text-slate-600 flex flex-col sm:flexrow justify-between items-center p-4">
           <p className="mb-4 sm:mb-0">
             Calculations are based on desired pest density per square meter. Adjust as neededCalculations are based on
             desired pest density per square meter. Adjust desired pest density per square meter. Adjust as needed based
