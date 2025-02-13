@@ -155,4 +155,3 @@ For support, please:
 ---
 
 Built with ❤️ for the agricultural community
-
