@@ -139,19 +139,6 @@ We welcome contributions to the IPM Calculator! Please follow these steps:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
-
-- Thanks to all contributors who have helped shape the IPM Calculator
-- Special thanks to the agricultural professionals who provided valuable feedback
-- Icon and design resources from various open-source projects
-
-## Support
-
-For support, please:
-- Open an issue on GitHub
-- Contact us through our support channels
-- Check our documentation wiki
-
 ---
 
 Built with ❤️ for the agricultural community
